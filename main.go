@@ -6,11 +6,14 @@ import (
 	"fmt"
 	"flag"
 	"log"
+	"time"
 	// "reflect"
 )
 
 func main() {
 	csvFilename := flag.String("csv", "problems.csv", "A CSV file in the format of questions and answers")
+	timeLimit := flag.Int("tlimit", 5, "Time limit to complete the quiz")
+	
 
 	flag.Parse()
 	file, err := os.Open(*csvFilename)
@@ -25,19 +28,32 @@ func main() {
 		exit(err)
 	}
 
+	timer := time.NewTimer(time.Duration(*timeLimit) * time.Second)
 	score := 0
 
 	for _, problem := range parseLines(lines) {
-		var answer string
 		fmt.Println(problem.question)
-		fmt.Scanf("%v\n", &answer)
-		if answer == problem.answer {
-			score ++
+
+		answerCh := make(chan string)
+		
+		go func() {
+			var answer string
+			fmt.Scanf("%v\n", &answer)
+			answerCh <-answer
+		}()
+
+		select {
+		case <-timer.C:
+			printScore(score, len(lines))
+			return
+		case answer := <-answerCh:
+			fmt.Println(problem.question)
+			if answer == problem.answer {
+				score ++
+			}
 		}
 	}
-
-	fmt.Printf("You scored %d out of %d\n", score, len(lines))
-
+	printScore(score, len(lines))
 }
 
 func parseLines(problems [][]string) []problem {
@@ -56,4 +72,8 @@ type problem struct {
 func exit(err error) {
 	log.Fatal(err)
 	os.Exit(1)
+}
+
+func printScore(score, count int) {
+	fmt.Printf("\nYou scored %d out of %d\n", score, count)
 }
